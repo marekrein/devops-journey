@@ -1,0 +1,49 @@
+---
+// Adds a tick box to every numbered step inside <Steps> and enables every "- [ ]" task list,
+// so the reader can tick their way through the page.
+// Progress is kept per page in the reader's browser.
+---
+<dj-progress class="dj-progress not-content" aria-live="polite">
+  <span class="dj-progress-bar"><span></span></span>
+  <span class="dj-progress-text">Tick the checkboxes as you go — progress is saved in this browser.</span>
+  <button type="button">Reset</button>
+</dj-progress>
+
+<script>
+  class DjProgress extends HTMLElement {
+    connectedCallback() {
+      const key = 'dj-progress:' + location.pathname;
+      let state: boolean[] = [];
+      try { state = JSON.parse(localStorage.getItem(key) || '[]'); } catch {}
+      document.querySelectorAll('.sl-steps > li').forEach((li) => {
+        const box = document.createElement('input');
+        box.type = 'checkbox'; box.className = 'dj-step-box'; box.setAttribute('aria-label', 'Step done');
+        li.prepend(box);
+      });
+      const boxes = [...document.querySelectorAll<HTMLInputElement>('.sl-markdown-content li > input[type="checkbox"]')];
+      const bar = this.querySelector<HTMLElement>('.dj-progress-bar > span')!;
+      const text = this.querySelector('.dj-progress-text')!;
+      const render = () => {
+        const done = boxes.filter((b) => b.checked).length;
+        bar.style.width = boxes.length ? `${(100 * done) / boxes.length}%` : '0';
+        text.textContent = `${done} of ${boxes.length} steps done`;
+        try { localStorage.setItem(key, JSON.stringify(boxes.map((b) => b.checked))); } catch {}
+      };
+      boxes.forEach((b, i) => { b.disabled = false; b.checked = !!state[i]; b.addEventListener('change', render); });
+      this.querySelector('button')!.addEventListener('click', () => { boxes.forEach((b) => (b.checked = false)); render(); });
+      if (!boxes.length) this.hidden = true; else render();
+    }
+  }
+  customElements.define('dj-progress', DjProgress);
+</script>
+
+<style>
+  .dj-progress { position: sticky; top: calc(var(--sl-nav-height) + .5rem); z-index: 2; display: flex; align-items: center; gap: .75rem; margin: 1rem 0; padding: .5rem .75rem; border: 1px solid var(--sl-color-gray-5); border-radius: .5rem; background: var(--sl-color-bg); font-size: var(--sl-text-sm); }
+  .dj-progress-bar { flex: 0 0 8rem; height: .5rem; border-radius: 1rem; background: var(--sl-color-gray-5); overflow: hidden; }
+  .dj-progress-bar > span { display: block; height: 100%; width: 0; background: var(--sl-color-accent); transition: width .2s; }
+  .dj-progress-text { flex: 1; color: var(--sl-color-gray-2); }
+  .dj-progress button { padding: .15rem .6rem; border: 1px solid var(--sl-color-gray-4); border-radius: .25rem; background: transparent; color: var(--sl-color-gray-2); cursor: pointer; font-size: var(--sl-text-xs); }
+  :global(.sl-markdown-content li:has(> input[type='checkbox'])) { list-style: none; }
+  :global(.sl-markdown-content ul:has(> li > input[type='checkbox'])) { padding-inline-start: .25rem; }
+  :global(.sl-steps > li > .dj-step-box) { float: right; margin: .35rem 0 0 .5rem; inline-size: 1.1rem; block-size: 1.1rem; accent-color: var(--sl-color-accent); cursor: pointer; }
+</style>

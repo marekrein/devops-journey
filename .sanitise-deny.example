@@ -1,0 +1,3 @@
+# Copy to .sanitise-deny (gitignored) and add your real private values, one regex per line.
+# Local runs of scripts/sanitise-check.sh then block them too; CI uses only the generic patterns.
+# example: my-real-portal-subdomain

@@ -1,0 +1,303 @@
+---
+title: "A0 — An AWS organization nobody logs into as root"
+description: Three AWS accounts, SSO with MFA as the only way in, root credentials removed from member accounts, two guard-rail policies and budget alerts in every account.
+draft: false
+sidebar: { order: 0, label: "A0 — Organization, SSO, budgets" }
+runbook:
+  track: AWS
+  level: Beginner
+  time: "3–4 h, plus up to 24 h waiting for billing data"
+  cost: "$0 if you stay in the Free Tier"
+  verified: "2026-10-22"
+  prerequisites: ["A payment card", "An email inbox that supports plus-addressing (Gmail, Fastmail, your own domain)", "A password manager", "Touch ID / a security key, or an authenticator app", "AWS CLI v2"]
+---
+import { Steps, Aside, Tabs, TabItem, FileTree } from '@astrojs/starlight/components';
+import Vars from '../../../../components/Vars.astro';
+import Progress from '../../../../components/Progress.astro';
+import MyRun from '../../../../components/MyRun.astro';
+
+When you finish, nobody — including you — signs in to AWS as root or as an IAM user. You get in through one SSO portal with MFA on every sign-in, your test accounts are fenced off from regions you don't use, and every account emails you before it costs more than $20.
+
+<Vars
+  names={['EMAIL_USER', 'EMAIL_DOMAIN', 'SSO_USER', 'PORTAL_SUBDOMAIN', 'ALERT_EMAIL']}
+  hints={{ EMAIL_USER: 'jane', EMAIL_DOMAIN: 'example.com', SSO_USER: 'jane', PORTAL_SUBDOMAIN: 'jane-aws', ALERT_EMAIL: 'jane@example.com' }}
+/>
+
+<Progress />
+
+## What you'll build
+
+```text
+Root (organization)
+├── management account   ← billing, Organizations, Identity Center only. Root: MFA, never used.
+└── OU "workloads"       ← region guard rail applies here
+    ├── dev              ← no root credentials at all
+    └── prod             ← no root credentials at all
+
+Sign-in: https://<PORTAL_SUBDOMAIN>.awsapps.com/start → user <SSO_USER> + MFA → pick account → role
+```
+
+| Decision | Choice | Why |
+|---|---|---|
+| Account emails | one per account, plus-addressed: `<EMAIL_USER>+aws-mgmt@<EMAIL_DOMAIN>` | AWS needs a unique email per account; plus-addressing keeps one inbox |
+| Management account | Organizations, Identity Center and billing — nothing else | the only account that can't be fenced by policies |
+| How you sign in | IAM Identity Center, MFA every time | no long-lived keys, no shared root password |
+| Member-account root | no credentials at all | "MFA on root" was the old answer; "no root" is the current one |
+| Home region | `eu-north-1`; `eu-central-1` and `us-east-1` also allowed | pick your own home region — change it everywhere below |
+| Budget | $50/month per account, alerts at $20 actual, $50 actual, $50 forecast | a learning account should never surprise you |
+
+<Aside type="danger" title="Stop and don't continue if…">
+AWS puts a new account in verification hold (wait — don't create a second one) · creating an account in Organizations fails twice · you're about to paste an access key anywhere.
+</Aside>
+
+## 1. Management account and root lockdown
+
+<Steps>
+1. Go to aws.amazon.com → **Create an AWS account** with email + password. Email `<EMAIL_USER>+aws-mgmt@<EMAIL_DOMAIN>`, support plan **Basic (free)**.
+
+   <Aside type="caution" title="Don't use the Google / GitHub / Apple sign-up">
+   That creates the newer project-style account: no root user, an AWS-managed organization, no IAM Identity Center and a fixed region. Nothing in this runbook works there. I nearly did this — use the email path.
+   </Aside>
+
+   Sign-up asks for a **Free or Paid** plan. Either works: creating an organization in section 2 switches the account to Paid, and leftover credits carry over. It also ends the *Explore AWS* credit activities on the console home page — do those first if you want them.
+
+2. Store a generated 32+ character root password in your password manager. You type it a few more times today, then never again.
+
+3. Signed in as root: account menu → **Security credentials** → **Assign MFA device**. Register **two** devices — a passkey (Touch ID or security key) and an authenticator app. One device is a lockout waiting to happen.
+
+4. Open `https://console.aws.amazon.com/billing/home#/account` (it isn't in the Billing menu) → **IAM user and role access to Billing information** → **Edit** → **Activate IAM Access**. Without this, your SSO user can't see costs or budgets.
+
+5. **Billing and Cost Management → Billing preferences**, two sections, each with its own Edit:
+   - Alert preferences → **Receive AWS Free Tier usage alerts**. Leave *CloudWatch billing alerts* off — it can never be switched off again.
+   - Invoice delivery → **PDF invoices by email**.
+
+6. **Cost Anomaly Detection** → check a default *AWS services* monitor exists; if not, create one with a daily email. If it says Cost Explorer isn't enabled yet, open Cost Explorer once and come back tomorrow — don't wait for it.
+
+7. Sign out of root.
+</Steps>
+
+## 2. Organization, member accounts and guard rails
+
+Sign in as root one last time — the SSO portal doesn't exist yet.
+
+<Steps>
+1. **AWS Organizations → Create an organization** (all features).
+
+2. **AWS accounts → Add an AWS account → Create an AWS account** twice:
+   - `dev`, email `<EMAIL_USER>+aws-dev@<EMAIL_DOMAIN>`
+   - `prod`, email `<EMAIL_USER>+aws-prod@<EMAIL_DOMAIN>`
+
+   Keep the role name `OrganizationAccountAccessRole`.
+
+   <MyRun date="2026-10-09" summary="One of my creates failed">
+   The first `dev` create failed with `EMAIL_ALREADY_EXISTS` — that address already belonged to another AWS account. Nothing half-created was left behind; a retry with a fresh address worked. Check with:
+
+   ```bash
+   aws organizations list-create-account-status --states FAILED \
+     --query 'CreateAccountStatuses[].[AccountName,FailureReason]' --output text
+   ```
+   </MyRun>
+
+3. **Organizational units** → on Root: **Actions → Create new** → `workloads`. Move `dev` and `prod` into it. The management account stays directly under Root.
+
+4. **IAM → Root access management** (its own menu item, not under *Account settings*) → **Enable** → tick **Root credentials management** and **Privileged root actions in member accounts**.
+
+   <Aside type="note" title="'Access denied' in the credentials column is expected here">
+   The console checks each account with `sts:AssumeRoot`, which the root user isn't allowed to call. Check again after section 3, signed in through SSO — both accounts should show **Not present**.
+   </Aside>
+
+5. **Policies → Service control policies → Enable → Create policy**, two policies.
+
+   `DenyLeaveOrganization` — attach to **Root** (every account inherits it):
+
+   ```json title="DenyLeaveOrganization.json"
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       { "Effect": "Deny", "Action": "organizations:LeaveOrganization", "Resource": "*" }
+     ]
+   }
+   ```
+
+   `RestrictRegions` — attach to **`workloads` only**. Never to Root: policies never restrict the management account anyway, and you'd only confuse yourself.
+
+   ```json title="RestrictRegions.json"
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Deny",
+         "NotAction": [
+           "a4b:*", "acm:*", "aws-marketplace-management:*", "aws-marketplace:*", "aws-portal:*",
+           "budgets:*", "ce:*", "chime:*", "cloudfront:*", "config:*", "cur:*", "directconnect:*",
+           "ec2:DescribeRegions", "ec2:DescribeTransitGateways", "ec2:DescribeVpnGateways",
+           "fms:*", "globalaccelerator:*", "health:*", "iam:*", "importexport:*", "kms:*",
+           "mobileanalytics:*", "networkmanager:*", "organizations:*", "pricing:*",
+           "route53:*", "route53domains:*", "route53-recovery-cluster:*",
+           "route53-recovery-control-config:*", "route53-recovery-readiness:*",
+           "s3:GetAccountPublic*", "s3:ListAllMyBuckets", "s3:ListMultiRegionAccessPoints",
+           "s3:PutAccountPublic*", "shield:*", "sts:*", "support:*", "trustedadvisor:*",
+           "waf-regional:*", "waf:*", "wafv2:*", "wellarchitected:*"
+         ],
+         "Resource": "*",
+         "Condition": {
+           "StringNotEquals": { "aws:RequestedRegion": ["eu-north-1", "eu-central-1", "us-east-1"] }
+         }
+       }
+     ]
+   }
+   ```
+
+   The `NotAction` list is AWS's published example for *deny access based on the requested Region* (checked 2026-10-09), without its break-glass exemption. These are global services that always go through `us-east-1`.
+
+   Attach: open the policy → **Targets** → **Attach**.
+
+   <MyRun date="2026-10-22" summary="I found a third policy I'd forgotten">
+   The policy list showed an extra `DenyLeaveAndCloseAccount` from an earlier attempt, still attached. It couldn't be deleted (`PolicyInUseException`) until I detached it from every target. Leave only `DenyLeaveOrganization`, `RestrictRegions` and AWS's `FullAWSAccess` — never remove `FullAWSAccess`: policies only take permissions away, so without it every account is denied everything.
+   </MyRun>
+</Steps>
+
+## 3. IAM Identity Center — the only way in
+
+<Steps>
+1. **Switch the console region to your home region first** (top right). There's no region field — Identity Center is created wherever the console is. Then **IAM Identity Center → Enable** → keep the **Organization instance**.
+
+2. **Settings → Authentication → Multi-factor authentication → Configure**:
+   - Prompt users for MFA: **Every time they sign in (always-on)**
+   - Types: **Security keys and built-in authenticators** + **Authenticator apps**
+   - Users without a device: **Require them to register at sign-in**
+
+3. **Users → Add user**: username `<SSO_USER>`, *send an email with password setup instructions*. Open the email and set the password within 7 days — the link expires.
+
+4. **Multi-account permissions → Permission sets → Create**: predefined `AdministratorAccess`, session 4 h. Create a second: `ReadOnlyAccess`, 8 h.
+
+5. **Multi-account permissions → AWS accounts** → tick all three → **Assign users or groups** → `<SSO_USER>` → both permission sets.
+
+6. **Dashboard → AWS access portal URLs → Edit** → subdomain `<PORTAL_SUBDOMAIN>`.
+
+   <Aside type="caution">This can be set **once** and never changed. Check the spelling before saving.</Aside>
+
+7. Sign out of root. In a private window open `https://<PORTAL_SUBDOMAIN>.awsapps.com/start`, sign in as `<SSO_USER>` with MFA → `prod` → AdministratorAccess → Management console.
+
+   <MyRun date="2026-10-21" summary="My first sign-in failed">
+   *"We couldn't verify your sign-in credentials."* I'd typed a different username from the one I created, and the password manager filled a password from another AWS login. The portal doesn't tell you a username doesn't exist. Check the exact username under **Identity Center → Users**, and use **Reset password → one-time password** if in doubt.
+   </MyRun>
+</Steps>
+
+## 4. CLI profiles on your machine — no access keys
+
+```bash title="Terminal"
+aws --version                        # need aws-cli/2.x
+export AWS_DEFAULT_REGION=eu-north-1
+
+aws configure sso --profile mgmt
+#   SSO session name: lab
+#   SSO start URL:    https://<PORTAL_SUBDOMAIN>.awsapps.com/start
+#   SSO region:       eu-north-1
+#   → browser opens, approve → pick the management account → AdministratorAccess
+aws configure sso --profile dev      # reuse session "lab", pick dev
+aws configure sso --profile prod     # reuse session "lab", pick prod
+
+aws sso login --profile dev
+for p in mgmt dev prod; do echo "== $p"; aws sts get-caller-identity --profile "$p" --query '[Account,Arn]' --output text; done
+test -f ~/.aws/credentials && echo "STOP: static credentials present" || echo "ok: no static keys"
+```
+
+<MyRun date="2026-10-22" summary="Expected output (and my pager problem)">
+```text
+== mgmt
+111111111111    arn:aws:sts::111111111111:assumed-role/AWSReservedSSO_AdministratorAccess_…/jane
+== dev
+222222222222    arn:aws:sts::222222222222:assumed-role/AWSReservedSSO_AdministratorAccess_…/jane
+== prod
+333333333333    arn:aws:sts::333333333333:assumed-role/AWSReservedSSO_AdministratorAccess_…/jane
+ok: no static keys
+```
+
+My first run printed only the `== mgmt` headers, exit code 0, no errors. The CLI's output pager was swallowing everything. `aws … --no-cli-pager` proved it; the permanent fix is `export AWS_PAGER=""` in your shell profile.
+</MyRun>
+
+## 5. Budgets — same JSON in every account
+
+Budgets are per account, so alerts fire where the spend happens. These two files contain no IDs or emails — commit them.
+
+```bash title="Terminal"
+mkdir -p budgets && cd budgets
+export ALERT_EMAIL="<ALERT_EMAIL>"
+
+cat > monthly-cap.json <<'JSON'
+{
+  "BudgetName": "monthly-cap",
+  "BudgetType": "COST",
+  "TimeUnit": "MONTHLY",
+  "BudgetLimit": { "Amount": "50", "Unit": "USD" },
+  "CostTypes": { "IncludeCredit": false, "IncludeRefund": false, "UseAmortized": false }
+}
+JSON
+
+cat > monthly-cap-notifications.tmpl.json <<'JSON'
+[
+  { "Notification": { "NotificationType": "ACTUAL",     "ComparisonOperator": "GREATER_THAN", "Threshold": 20, "ThresholdType": "ABSOLUTE_VALUE" },
+    "Subscribers": [ { "SubscriptionType": "EMAIL", "Address": "ALERT_EMAIL" } ] },
+  { "Notification": { "NotificationType": "ACTUAL",     "ComparisonOperator": "GREATER_THAN", "Threshold": 50, "ThresholdType": "ABSOLUTE_VALUE" },
+    "Subscribers": [ { "SubscriptionType": "EMAIL", "Address": "ALERT_EMAIL" } ] },
+  { "Notification": { "NotificationType": "FORECASTED", "ComparisonOperator": "GREATER_THAN", "Threshold": 50, "ThresholdType": "ABSOLUTE_VALUE" },
+    "Subscribers": [ { "SubscriptionType": "EMAIL", "Address": "ALERT_EMAIL" } ] }
+]
+JSON
+
+sed "s/ALERT_EMAIL/$ALERT_EMAIL/g" monthly-cap-notifications.tmpl.json > /tmp/notifications.json
+for p in mgmt dev prod; do
+  ACCOUNT=$(aws sts get-caller-identity --profile "$p" --query Account --output text)
+  aws budgets create-budget --profile "$p" --account-id "$ACCOUNT" \
+    --budget file://monthly-cap.json \
+    --notifications-with-subscribers file:///tmp/notifications.json && echo "budget created in $p"
+done
+rm /tmp/notifications.json
+```
+
+Email subscribers need no confirmation. On a brand-new account `create-budget` can fail for up to 24 h while billing activates — rerun tomorrow; `DuplicateRecordException` means it already exists.
+
+## 6. Prove it
+
+Run every check. A guard rail you've never seen fire is a guess.
+
+```bash title="Terminal"
+for p in mgmt dev prod; do echo "== $p"; aws iam list-users --profile "$p" --query 'Users[].UserName' --output text; done
+aws ec2 describe-instances --profile dev --region ap-southeast-1
+for p in mgmt dev prod; do
+  A=$(aws sts get-caller-identity --profile "$p" --query Account --output text)
+  aws budgets describe-notifications-for-budget --profile "$p" --account-id "$A" --budget-name monthly-cap \
+    --query 'Notifications[].[NotificationType,Threshold]' --output text
+done
+```
+
+<MyRun date="2026-10-22" summary="What the guard rail looks like when it fires">
+```text
+An error occurred (UnauthorizedOperation) when calling the DescribeInstances operation:
+You are not authorized to perform this operation. User: arn:aws:sts::222222222222:assumed-role/
+AWSReservedSSO_AdministratorAccess_…/jane is not authorized to perform: ec2:DescribeInstances
+with an explicit deny in a service control policy: arn:aws:organizations::…:policy/o-…/service_control_policy/p-…
+```
+</MyRun>
+
+## Done when
+
+- [ ] Signing in to the portal asks for MFA before showing any account (test in a private window)
+- [ ] IAM → Root access management shows `dev` and `prod`: **Not present**
+- [ ] `list-users` prints nothing in all three accounts
+- [ ] `~/.aws/credentials` doesn't exist
+- [ ] Each account has `monthly-cap` with alerts at ACTUAL 20, ACTUAL 50, FORECASTED 50
+- [ ] A call to a non-allowed region in `dev` fails with *explicit deny in a service control policy*
+
+## Clean-up and cost
+
+Nothing here costs money on its own. Keep it — every later AWS runbook builds on it. If you abandon the lab: close `dev` and `prod` from **Organizations → AWS accounts → Close**, then close the management account last.
+
+## What I'd do differently
+
+- Decide the Identity Center username and the portal subdomain before starting, and write them down — the subdomain is permanent.
+- Use email addresses on a domain you own for every account. An employer mailbox is a recovery risk.
+- Delete any experiment policies the same day you create them.
+
+Next: **A1 — IAM cross-account roles and least privilege** (coming when I've run it).

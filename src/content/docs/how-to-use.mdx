@@ -1,0 +1,51 @@
+---
+title: How to use a runbook
+description: Fill in your values once, copy commands, tick off steps.
+sidebar: { order: 1 }
+---
+import { Aside } from '@astrojs/starlight/components';
+import Vars from '../../components/Vars.astro';
+import Progress from '../../components/Progress.astro';
+import MyRun from '../../components/MyRun.astro';
+
+Every runbook has the same parts. Try them on this page.
+
+## 1. Fill in your values
+
+Commands contain placeholders like `<YOUR_NAME>`. Type your value once in the **Your values** box and every command on the page updates — including what the copy button copies. Values stay in your browser and are shared between runbooks, so you type your email once.
+
+<Vars names={['YOUR_NAME']} hints={{ YOUR_NAME: 'jane' }} />
+
+```bash title="Terminal"
+echo "Hello, <YOUR_NAME>"
+```
+
+## 2. Tick off steps as you go
+
+<Progress />
+
+Each numbered step has a box on the right; the bar shows how far you are. Progress is saved per page in your browser, so you can close the tab and continue tomorrow.
+
+- [ ] Fill in a value above
+- [ ] Copy the command and run it
+
+## 3. Compare with my run
+
+<MyRun date="2026-10-22">
+```text
+Hello, jane
+```
+Collapsed boxes like this show what I actually got — output, error messages, timings. IDs and addresses are replaced with examples.
+</MyRun>
+
+## 4. Read the warnings
+
+<Aside type="danger">Red: stop conditions — something that costs money or can't be undone.</Aside>
+<Aside type="caution">Yellow: a trap I or others fell into.</Aside>
+<Aside type="note">Blue: why something looks wrong but is fine.</Aside>
+
+## 5. Finish with *Done when* and *Clean-up*
+
+A runbook isn't done when the last command succeeds, but when every *Done when* box is ticked. Then do the clean-up — or keep the resources if the next runbook builds on them; each page says which.
+
+Search everything with <kbd>Ctrl</kbd> + <kbd>K</kbd> (<kbd>⌘</kbd> + <kbd>K</kbd> on a Mac).

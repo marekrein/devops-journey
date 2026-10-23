@@ -1,0 +1,22 @@
+---
+title: Platform Engineering Runbooks
+description: Tested, step-by-step runbooks for AWS, Terraform and Kubernetes, written by a senior Java engineer while learning platform engineering.
+template: splash
+hero:
+  tagline: Step-by-step runbooks I ran myself — AWS, Terraform, Kubernetes on real hardware — with the real results and the real failures.
+  actions:
+    - text: Start here
+      link: /start-here/
+      icon: right-arrow
+    - text: How to use a runbook
+      link: /how-to-use/
+      variant: minimal
+---
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+<CardGrid>
+  <LinkCard title="Start here" description="Who these runbooks are for, what they cost, how far to trust them." href="/start-here/" />
+  <LinkCard title="AWS track" description="Start with A0: an AWS organization nobody logs into as root." href="/runbooks/aws/a0-aws-organization/" />
+  <LinkCard title="Homelab track" description="Kubernetes on an old laptop and two Raspberry Pi 5s." href="/runbooks/homelab/" />
+  <LinkCard title="Journey log" description="What I built, what broke, what I decided — newest first." href="/journey/" />
+</CardGrid>

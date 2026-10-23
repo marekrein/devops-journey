@@ -1,0 +1,31 @@
+name: deploy
+on:
+  push: { branches: [master] }
+  pull_request:
+  workflow_dispatch:
+permissions: { contents: read, pages: write, id-token: write }
+concurrency: { group: pages, cancel-in-progress: false }
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with: { fetch-depth: 0 }          # full history: secrets scan + "last updated" dates
+      - name: Secrets scan (whole history)
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          gh release download --repo gitleaks/gitleaks --pattern '*linux_x64.tar.gz' -O /tmp/gl.tgz
+          tar -C /tmp -xzf /tmp/gl.tgz gitleaks
+          /tmp/gitleaks git --redact --exit-code 1 .
+      - name: No private identifiers
+        run: bash scripts/sanitise-check.sh
+      - name: Install, build and upload
+        uses: withastro/action@v6
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    environment: { name: github-pages, url: "${{ steps.deployment.outputs.page_url }}" }
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

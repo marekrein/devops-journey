@@ -1,0 +1,19 @@
+---
+import Default from '@astrojs/starlight/components/PageTitle.astro';
+const rb = Astro.locals.starlightRoute.entry.data.runbook;
+---
+<Default />
+{rb && (
+  <>
+    <dl class="rb-meta" aria-label="Runbook facts">
+      <div><dt>Track</dt><dd>{rb.track}</dd></div>
+      <div><dt>Level</dt><dd>{rb.level}</dd></div>
+      <div><dt>Time</dt><dd>{rb.time}</dd></div>
+      <div><dt>Cost</dt><dd>{rb.cost}</dd></div>
+      <div><dt>Last verified</dt><dd>{rb.verified}</dd></div>
+    </dl>
+    {rb.prerequisites.length > 0 && (
+      <p class="rb-prereq"><strong>Before you start:</strong> {rb.prerequisites.join(' · ')}</p>
+    )}
+  </>
+)}

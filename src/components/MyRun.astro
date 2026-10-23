@@ -1,0 +1,14 @@
+---
+// The author's real result for a step: collapsed by default, dated, sanitised.
+interface Props { date: string; summary?: string }
+const { date, summary = 'What I got' } = Astro.props;
+---
+<details class="dj-myrun">
+  <summary>{summary} <span>· my run, {date}</span></summary>
+  <slot />
+</details>
+<style>
+  .dj-myrun { margin: 1rem 0; padding: .5rem .75rem; border-left: 3px solid var(--sl-color-green); background: var(--sl-color-green-low); border-radius: 0 .25rem .25rem 0; }
+  .dj-myrun summary { cursor: pointer; font-weight: 600; color: var(--sl-color-white); }
+  .dj-myrun summary span { font-weight: 400; color: var(--sl-color-gray-2); font-size: var(--sl-text-sm); }
+</style>

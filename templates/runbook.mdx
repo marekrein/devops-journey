@@ -1,0 +1,67 @@
+---
+# Learner edition of a vault runbook. Copy to src/content/docs/runbooks/<aws|homelab>/<id>-<slug>.mdx
+title: "<ID> — <outcome in plain words>"
+description: "<one sentence: what the reader has when they finish>"
+draft: true                       # set false only after the sanitise check
+sidebar: { order: 0, label: "<ID> — <short label>" }   # order = position in the track
+runbook:
+  track: AWS                      # AWS | Homelab
+  level: Beginner                 # Beginner | Intermediate | Advanced
+  time: "<measured on your run, e.g. 3–4 h>"
+  cost: "<e.g. $0 · ≈ $2 if deleted the same day>"
+  verified: "<YYYY-MM-DD you last ran it end to end>"
+  prerequisites: ["<previous runbook>", "<tool>"]
+---
+import { Steps, Aside, Tabs, TabItem, FileTree } from '@astrojs/starlight/components';
+import Vars from '../../../../components/Vars.astro';
+import Progress from '../../../../components/Progress.astro';
+import MyRun from '../../../../components/MyRun.astro';
+
+<!-- One paragraph: what the reader ends up with and why it matters. -->
+
+<Vars names={['EXAMPLE_VALUE']} hints={{ EXAMPLE_VALUE: 'what to type' }} />
+
+<Progress />
+
+## What you'll build
+
+<!-- Diagram (text tree, image or SVG) + a decision table: Decision | Choice | Why -->
+
+<Aside type="danger" title="Stop and don't continue if…">
+<!-- stop conditions from the vault runbook -->
+</Aside>
+
+## 1. <First section>
+
+<Steps>
+1. <What to do, one action per step.>
+
+   ```bash title="Terminal"
+   echo "<EXAMPLE_VALUE>"
+   ```
+
+   <MyRun date="YYYY-MM-DD">
+   ```text
+   <sanitised real output>
+   ```
+   </MyRun>
+</Steps>
+
+## Prove it
+
+<!-- The checks from the vault runbook, with the deliberate failure test. -->
+
+## Done when
+
+- [ ] <observable result>
+- [ ] <observable result>
+
+## Clean-up and cost
+
+<!-- Exact teardown commands, or "keep it: <next runbook> builds on this". -->
+
+## What I'd do differently
+
+- <one or two real lessons>
+
+Next: **<next runbook>**

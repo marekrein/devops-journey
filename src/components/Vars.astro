@@ -1,0 +1,82 @@
+---
+// Fill-in values for placeholders such as <ACCOUNT_ID> in this page's code blocks.
+// Values stay in the reader's browser (localStorage); nothing is sent anywhere.
+interface Props { names: string[]; hints?: Record<string, string> }
+const { names, hints = {} } = Astro.props;
+---
+<dj-vars class="dj-vars not-content">
+  <p class="dj-vars-title">Your values <span>— fill these in and every command on this page updates; copy buttons copy your version.</span></p>
+  <div class="dj-vars-grid">
+    {names.map((n) => (
+      <label>
+        <code>{`<${n}>`}</code>
+        <input name={n} placeholder={hints[n] ?? n} autocomplete="off" spellcheck="false" />
+      </label>
+    ))}
+  </div>
+  <button type="button" class="dj-vars-clear">Clear values</button>
+</dj-vars>
+
+<script>
+  const KEY = 'dj-vars';
+  const RE = /<([A-Z][A-Z0-9_]*)>/g;
+  const load = (): Record<string, string> => { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; } };
+  const save = (v: Record<string, string>) => { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch {} };
+  const origText = new WeakMap<Element, string[]>();
+  const origCopy = new WeakMap<Element, string>();
+
+  function textNodes(el: Element) {
+    const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT); const out: Text[] = [];
+    while (w.nextNode()) out.push(w.currentNode as Text);
+    return out;
+  }
+  function apply(values: Record<string, string>) {
+    const sub = (s: string) => s.replace(RE, (m, n) => (values[n] ? values[n] : m));
+    // Code shown on screen; a placeholder may be split across highlighted spans.
+    document.querySelectorAll('.expressive-code .ec-line .code, .sl-markdown-content :not(pre) > code').forEach((el) => {
+      if (el.closest('.dj-vars')) return;
+      const nodes = textNodes(el);
+      if (!origText.has(el)) origText.set(el, nodes.map((n) => n.data));
+      const orig = origText.get(el)!;
+      const owner: number[] = []; orig.forEach((t, k) => { for (const _ of t) owner.push(k); });
+      const full = orig.join(''); const out = orig.map(() => ''); let pos = 0;
+      for (const m of full.matchAll(RE)) {
+        for (; pos < m.index!; pos++) out[owner[pos]] += full[pos];
+        out[owner[m.index!]] += values[m[1]] || m[0]; pos = m.index! + m[0].length;
+      }
+      for (; pos < full.length; pos++) out[owner[pos]] += full[pos];
+      nodes.forEach((n, k) => { if (n.data !== out[k]) n.data = out[k]; });
+    });
+    // What the copy button puts on the clipboard.
+    document.querySelectorAll('.expressive-code .copy button[data-code]').forEach((b) => {
+      if (!origCopy.has(b)) origCopy.set(b, b.getAttribute('data-code') || '');
+      b.setAttribute('data-code', sub(origCopy.get(b)!));
+    });
+  }
+
+  class DjVars extends HTMLElement {
+    connectedCallback() {
+      const values = load();
+      const inputs = [...this.querySelectorAll('input')];
+      inputs.forEach((i) => {
+        i.value = values[i.name] || '';
+        i.addEventListener('input', () => { values[i.name] = i.value.trim(); save(values); apply(values); });
+      });
+      this.querySelector('.dj-vars-clear')!.addEventListener('click', () => {
+        inputs.forEach((i) => { i.value = ''; delete values[i.name]; }); save(values); apply(values);
+      });
+      apply(values);
+    }
+  }
+  customElements.define('dj-vars', DjVars);
+</script>
+
+<style>
+  .dj-vars { display: block; margin: 1.5rem 0; padding: 1rem; border: 1px solid var(--sl-color-accent); border-radius: .5rem; background: var(--sl-color-accent-low); }
+  .dj-vars-title { margin: 0 0 .75rem; font-weight: 600; color: var(--sl-color-white); }
+  .dj-vars-title span { font-weight: 400; color: var(--sl-color-gray-2); font-size: var(--sl-text-sm); }
+  .dj-vars-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: .75rem; }
+  .dj-vars label { display: flex; flex-direction: column; gap: .25rem; font-size: var(--sl-text-sm); }
+  .dj-vars input { padding: .4rem .5rem; border: 1px solid var(--sl-color-gray-4); border-radius: .25rem; background: var(--sl-color-bg); color: var(--sl-color-white); font-family: var(--sl-font-mono); }
+  .dj-vars-clear { margin-top: .75rem; padding: .25rem .75rem; border: 1px solid var(--sl-color-gray-4); border-radius: .25rem; background: transparent; color: var(--sl-color-gray-2); cursor: pointer; font-size: var(--sl-text-xs); }
+</style>

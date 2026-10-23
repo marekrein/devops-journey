@@ -1,0 +1,369 @@
+---
+title: "S0 — Publish your own runbook site on your own domain"
+description: An interactive runbook site like this one, deployed by GitHub Actions to GitHub Pages on your own domain, with HTTPS, a secrets scan on every push, and your existing email left working.
+draft: true
+sidebar: { order: 0, label: "S0 — Your own runbook site" }
+runbook:
+  track: Site
+  level: Beginner
+  time: "1 evening, plus up to 1 h waiting for DNS and the certificate"
+  cost: "Your domain only (≈ $10–20/year); GitHub Pages is free for public repos"
+  verified: "2026-10-23"
+  prerequisites: ["A GitHub account with an SSH key", "A domain you own (example: Namecheap)", "Node.js 22+", "GitHub CLI (gh)", "gitleaks"]
+---
+import { Steps, Aside, Tabs, TabItem, FileTree } from '@astrojs/starlight/components';
+import Vars from '../../../../components/Vars.astro';
+import Progress from '../../../../components/Progress.astro';
+import MyRun from '../../../../components/MyRun.astro';
+
+At the end you have the same kind of site you're reading now: interactive runbooks with a values box, tick boxes and real-output boxes, published to `https://<DOMAIN>` on every `git push`, with two checks that stop secrets and private IDs from ever going live. If email already runs on your domain, it keeps working.
+
+I use **Namecheap** for DNS and **Proton Mail** for email, so those are the worked example. Any registrar and mail provider work the same way — the record types and values are identical; only the menus differ.
+
+<Vars
+  names={['GITHUB_USER', 'REPO', 'DOMAIN', 'LINKEDIN_HANDLE', 'CONTACT_EMAIL']}
+  hints={{ GITHUB_USER: 'jdoe', REPO: 'runbooks', DOMAIN: 'example.com', LINKEDIN_HANDLE: 'jane-doe', CONTACT_EMAIL: 'jane@example.com' }}
+/>
+
+<Progress />
+
+## What you'll build
+
+```text
+your laptop ── git push (SSH) ──▶ github.com/<GITHUB_USER>/<REPO>
+                                   └─ Actions "deploy": secrets scan → private-ID check → build → publish
+                                                                                        │
+visitor ──▶ https://<DOMAIN> ── DNS at your registrar ──▶ GitHub Pages (185.199.108–111.153)
+mail    ──▶ you@<DOMAIN>     ── MX at your registrar  ──▶ your mail provider   (left untouched)
+```
+
+| Decision | Choice | Why |
+|---|---|---|
+| Site framework | Astro Starlight | search, steps, tabs, warnings and copy buttons built in; small components add the interactive parts |
+| Hosting | GitHub Pages, deployed by GitHub Actions | free for a public repo, HTTPS included, every deploy is a visible CI run |
+| Address | the bare domain `https://<DOMAIN>`, `www` redirects to it | shortest thing to print on a CV |
+| Git remote | SSH | no passwords or tokens typed at push time |
+| Publishing | everything starts as `draft: true` | nothing goes public until you've read it as a stranger would |
+| Safety net | gitleaks over the whole history + a private-ID check in CI | a pasted key or account ID fails the build instead of going live |
+
+<Aside type="danger" title="Stop and don't continue if…">
+You're about to delete an **MX**, **TXT** or **`_domainkey`** record — that's your email · `git push --force` would overwrite a repo that holds work you want to keep · `.sanitise-deny` shows up in `git status` (it must stay local).
+</Aside>
+
+## 1. Start from the template
+
+<Steps>
+1. Install the tools you don't have yet:
+
+   ```bash title="Terminal (macOS)"
+   brew install node gh gitleaks
+   node --version          # v22 or newer
+   gh auth login           # once, if gh isn't signed in
+   ```
+
+2. Copy the site **without its Git history** and start your own:
+
+   ```bash title="Terminal"
+   mkdir -p ~/lab && cd ~/lab
+   git clone --depth 1 git@github.com:marekrein/devops-journey.git <REPO>
+   cd <REPO>
+   rm -rf .git
+   npm ci
+   ```
+
+3. Remove my content and keep the structure:
+
+   ```bash title="Terminal"
+   rm -f src/content/docs/runbooks/aws/*.mdx src/content/docs/runbooks/site/*.mdx
+   find src/content/docs/journey -name '*.md' ! -name index.md -delete
+   ```
+
+   <FileTree>
+   - src/
+     - components/ the values box, tick boxes, "my run" boxes — keep
+     - content/docs/
+       - index.mdx home page — rewrite
+       - start-here.md rewrite
+       - how-to-use.mdx keep, it explains the interactive parts
+       - about.md rewrite
+       - decisions/ your decisions table
+       - journey/ your log
+       - runbooks/ your runbooks
+   - templates/runbook.mdx starting point for each runbook
+   - scripts/sanitise-check.sh the private-ID check
+   - .github/workflows/deploy.yml the CI pipeline
+   - public/CNAME your domain
+   </FileTree>
+
+4. Put your own identity everywhere mine was:
+
+   ```bash title="Terminal"
+   LC_ALL=C find . -path ./node_modules -prune -o -type f \( -name '*.mjs' -o -name '*.md' -o -name '*.mdx' -o -name CNAME \) -print0 |
+     xargs -0 sed -i '' \
+       -e 's#marekrein/devops-journey#<GITHUB_USER>/<REPO>#g' \
+       -e 's#github.com/marekrein#github.com/<GITHUB_USER>#g' \
+       -e 's#in/marek-reinhold#in/<LINKEDIN_HANDLE>#g' \
+       -e 's#marek@reinhold\.co#<CONTACT_EMAIL>#g' \
+       -e 's#reinhold\.co#<DOMAIN>#g'
+   command grep -rn "marekrein\|marek-reinhold\|reinhold\.co" --exclude-dir=node_modules . || echo "clean"
+   ```
+
+   On Linux use `sed -i` instead of `sed -i ''`. Then open `src/content/docs/about.md`, `start-here.md` and `index.mdx` and write them as yourself — they still describe me.
+
+5. Preview:
+
+   ```bash title="Terminal"
+   npm run dev             # http://localhost:4321 — drafts are visible only here
+   ```
+
+   Open *How to use a runbook*, type a name into **Your values** and watch the command change; tick a box and reload. Stop the server with Ctrl-C.
+
+   <MyRun date="2026-10-23" summary="'Another astro dev server is already running'">
+   Not an error: a server I'd started earlier in another terminal tab was still up. Either open `http://localhost:4321` (it already serves this folder) or run `npx astro dev stop` and start again here.
+   </MyRun>
+</Steps>
+
+## 2. Block your private values
+
+The CI pipeline already rejects AWS account IDs, organization IDs, ARNs with real accounts, private IP addresses and access keys. Add the things only you know — they stay on your machine:
+
+```bash title="Terminal"
+cat > .sanitise-deny <<'LIST'
+your-sso-portal-subdomain
+your-employer-name
+your-private-email-user
+LIST
+bash scripts/sanitise-check.sh       # sanitise-check: clean
+git check-ignore .sanitise-deny      # prints the name = it will never be committed
+```
+
+<Aside type="caution" title="Don't block words your pages use on purpose">
+My first list blocked `+aws-`, and my own runbook's example address `<EMAIL_USER>+aws-dev@…` failed the check. Block your real values, not patterns that also appear in placeholders.
+</Aside>
+
+## 3. Write your first page
+
+```bash title="Terminal"
+mkdir -p src/content/docs/runbooks/aws
+cp templates/runbook.mdx src/content/docs/runbooks/aws/a0-first-runbook.mdx
+```
+
+Fill the frontmatter (measured `time`, real `cost`, `verified` = the day you last ran it), write the steps, and keep `draft: true` until you've followed the page top to bottom with fake values in the box. [How to use a runbook](/how-to-use/) shows every interactive piece.
+
+<Aside type="caution" title="Placeholders go inside backticks">
+In an `.mdx` page a bare `<WORD>` in normal text is read as a component and breaks the build. Write `` `<WORD>` `` or put it in a code block.
+</Aside>
+
+Check before every push:
+
+```bash title="Terminal"
+bash scripts/sanitise-check.sh       # sanitise-check: clean
+gitleaks dir --redact .              # no leaks found
+npm run build                        # … Complete!
+```
+
+## 4. Repository and first deploy
+
+<Steps>
+1. Make sure SSH works and tell `gh` to use it:
+
+   ```bash title="Terminal"
+   ssh -T git@github.com                  # Hi <GITHUB_USER>! You've successfully authenticated…
+   gh config set git_protocol ssh
+   ```
+
+2. Create the repository **from the project folder** — the one with `package.json` in it:
+
+   ```bash title="Terminal"
+   cd ~/lab/<REPO>
+   ls package.json astro.config.mjs .github/workflows/deploy.yml   # all three must exist here
+   git init -b master
+   git add -A
+   git status --short | head -20          # .github/, src/, package.json … — no node_modules/, no .sanitise-deny
+   git commit -m "site: first version"
+   gh repo create <GITHUB_USER>/<REPO> --public --source=. --remote=origin --push
+   ```
+
+   <MyRun date="2026-10-23" summary="My first push uploaded two files instead of the site">
+   I had `cd`'d into `src/content/docs/journey` and ran `git init` there. GitHub ended up with only two Markdown files at the top level, and the Actions tab showed *Get started with GitHub Actions* — no workflow. The fix: delete the stray `src/content/docs/journey/.git`, `git init` in the project root, and push once with `git push -u --force origin master` (safe only because the remote held nothing worth keeping). The `ls` line above catches this before it happens.
+   </MyRun>
+
+   <MyRun date="2026-10-23" summary="Git asked for a username">
+   An earlier attempt had saved the HTTPS address as `origin`. Fix: Ctrl-C, then `git remote set-url origin git@github.com:<GITHUB_USER>/<REPO>.git` and push again.
+   </MyRun>
+
+3. Turn on Pages: **github.com/`<GITHUB_USER>`/`<REPO>` → Settings → Pages → Build and deployment → Source: GitHub Actions**. Ignore the suggested *Jekyll* and *Static HTML* workflows — the repo has its own.
+
+4. Watch the deploy: the **Actions** tab in the **top bar** of the repo (not *Settings → Actions*, which only holds settings) → **deploy** → the latest run. If there's no run yet, **Run workflow → Run workflow**. Or from the terminal:
+
+   ```bash title="Terminal"
+   gh workflow run deploy
+   gh run watch "$(gh run list -w deploy -L 1 --json databaseId -q '.[0].databaseId')"
+   ```
+
+   Expected: **build** (secrets scan, private-ID check, build) and **deploy** green in about a minute. The site is now at `https://<GITHUB_USER>.github.io/<REPO>/` — it looks unstyled and links break there, because it's built for `https://<DOMAIN>`. That's fixed in section 7.
+
+5. Pin the workflow's actions to exact commits, so a compromised tag can't change what runs:
+
+   ```bash title="Terminal"
+   for a in actions/checkout@v7 withastro/action@v6 actions/deploy-pages@v5; do
+     r=${a%@*}; t=${a#*@}; echo "$r@$(gh api "repos/$r/commits/$t" --jq .sha) # $t"
+   done
+   ```
+
+   Replace each `uses: …@vN` in `.github/workflows/deploy.yml` with the printed `…@<sha> # vN`, commit, push.
+</Steps>
+
+## 5. DNS at your registrar
+
+Example: **Namecheap → Domain List → `<DOMAIN>` → Manage**.
+
+<Steps>
+1. Write down what email uses now, so you can prove later that nothing changed:
+
+   ```bash title="Terminal"
+   dig +short <DOMAIN> MX
+   dig +short <DOMAIN> TXT
+   ```
+
+2. **Domain** tab → **Redirect Domain**: if there's a redirect such as `<DOMAIN> → http://www.<DOMAIN>/…`, delete it (🗑). It would fight the records below.
+
+3. **Advanced DNS** tab → **Host Records**. Delete only:
+   - records with Host `@` of type **URL Redirect**, **A** or **AAAA**,
+   - the record whose Host is exactly **`www`** — on a fresh Namecheap domain it's `CNAME www → parkingpage.namecheap.com.`
+
+   Keep every email record. With Proton Mail they look like this:
+
+   | Type | Host | Value |
+   |---|---|---|
+   | MX (in *Mail Settings → Custom MX*) | `@` | `mail.protonmail.ch` (10), `mailsec.protonmail.ch` (20) |
+   | TXT | `@` | `protonmail-verification=…` |
+   | TXT | `@` | `v=spf1 include:_spf.protonmail.ch …` |
+   | CNAME or TXT | `protonmail._domainkey` (and `protonmail2`, `protonmail3`) | `…domains.proton.ch.` or `v=DKIM1; …` |
+   | TXT | `_dmarc` | `v=DMARC1; …` (if you have one) |
+
+4. **Add New Record** five times, TTL *Automatic*, ✓ to save each:
+
+   | Type | Host | Value |
+   |---|---|---|
+   | A Record | `@` | `185.199.108.153` |
+   | A Record | `@` | `185.199.109.153` |
+   | A Record | `@` | `185.199.110.153` |
+   | A Record | `@` | `185.199.111.153` |
+   | CNAME Record | `www` | `<GITHUB_USER>.github.io.` |
+
+   <MyRun date="2026-10-23" summary="One typo GitHub didn't catch">
+   I typed `85.199.109.153` — the leading `1` missing. GitHub's DNS check still passed, because the other three addresses were right, but a quarter of visitors would have been sent to a stranger's server. Always run the `dig` check below; all four answers must start with `185.199.`
+   </MyRun>
+
+5. Check (DNS takes 5–30 minutes):
+
+   ```bash title="Terminal"
+   dig +short <DOMAIN> A               # exactly 185.199.108.153 / .109 / .110 / .111
+   dig +short www.<DOMAIN>             # <GITHUB_USER>.github.io. + the same four
+   dig +short <DOMAIN> MX              # unchanged from step 1
+   ```
+</Steps>
+
+## 6. Prove to GitHub that the domain is yours
+
+This stops anyone else from pointing a GitHub Pages site at your domain.
+
+<Steps>
+1. Open **github.com/settings/pages** — your **account** settings (profile picture → Settings → Pages), not the repository's Settings. That's where **Add a domain** is.
+2. **Add a domain** → `<DOMAIN>` → GitHub shows a TXT record.
+3. At the registrar: **Add New Record** → **TXT Record**, Host `_github-pages-challenge-<GITHUB_USER>` (only the part before `.<DOMAIN>`), Value = the code GitHub shows.
+4. After 5–30 minutes, **Verify**. Check from the terminal first if it fails:
+
+   ```bash title="Terminal"
+   dig +short _github-pages-challenge-<GITHUB_USER>.<DOMAIN> TXT
+   ```
+</Steps>
+
+## 7. Put the site on the domain
+
+<Steps>
+1. **Repository → Settings → Pages → Custom domain** → `<DOMAIN>` → **Save** → wait for **DNS check successful**.
+2. Wait for the certificate — usually 15–60 minutes. Until it's issued, *Enforce HTTPS* shows a note that it's unavailable.
+
+   <MyRun date="2026-10-23" summary="'Enforce HTTPS' was already ticked">
+   On the default `github.io` address HTTPS is forced, so the box was ticked and greyed out before I set the domain. That tick didn't yet apply to my domain. Once the certificate was issued, the note disappeared and the box showed a green check — no click needed. If yours comes back unticked, tick it. No certificate after two hours: **Remove** the domain and **Save** it again.
+   </MyRun>
+
+3. Check:
+
+   ```bash title="Terminal"
+   curl -sI https://<DOMAIN>/ | head -1          # HTTP/2 200
+   curl -sI http://<DOMAIN>/ | head -3           # 301 → https://<DOMAIN>/
+   curl -sI https://www.<DOMAIN>/ | head -3      # 301 → https://<DOMAIN>/
+   ```
+</Steps>
+
+## 8. Email: confirm it still works — and harden it
+
+Changing the site records never touches mail, but check, and use the moment to fix what your mail provider flags.
+
+<Steps>
+1. Proton: **Settings → Domain names**. **MX**, **SPF** and **DKIM** green; send yourself a test email.
+
+2. **DKIM orange?** Older Proton setups used one TXT record; Proton now wants three CNAMEs. Under **Review → DKIM** copy the three values. At the registrar **first delete** the TXT record with Host `protonmail._domainkey` — a name can't hold a TXT and a CNAME at once — then add:
+
+   | Type | Host | Value |
+   |---|---|---|
+   | CNAME Record | `protonmail._domainkey` | from Proton |
+   | CNAME Record | `protonmail2._domainkey` | from Proton |
+   | CNAME Record | `protonmail3._domainkey` | from Proton |
+
+   After 10–30 minutes, **Refresh status** in Proton → DKIM green.
+
+3. **DMARC grey?** Without it, anyone can send mail that claims to be from your domain. Once DKIM is green, add:
+
+   | Type | Host | Value |
+   |---|---|---|
+   | TXT Record | `_dmarc` | `v=DMARC1; p=quarantine` |
+
+   Use the value Proton shows under **Review → DMARC** if it differs. Want to be careful? Start with `p=none` for a week, then switch.
+
+4. Send a mail from your domain to a Gmail address → **⋮ → Show original** → `SPF: PASS`, `DKIM: PASS`, `DMARC: PASS`.
+</Steps>
+
+## Prove it
+
+```bash title="Terminal"
+dig +short <DOMAIN> A                         # four addresses, all 185.199.x.153
+dig +short <DOMAIN> MX                        # your mail servers, unchanged
+dig +short _dmarc.<DOMAIN> TXT                # v=DMARC1; …
+curl -sI https://<DOMAIN>/ | head -1          # HTTP/2 200
+gh run list -w deploy -L 3                    # latest runs green
+```
+
+And the deliberate failure — make the pipeline catch a fake account ID:
+
+```bash title="Terminal"
+git switch -c test-sanitise
+echo "account $((4000 * 100000000 + 1234))" >> src/content/docs/about.md   # a fake 12-digit ID
+git commit -am "test: should fail" && git push -u origin test-sanitise
+gh pr create --fill && gh pr checks --watch   # build fails at "No private identifiers"
+gh pr close --delete-branch && git switch master && git branch -D test-sanitise
+```
+
+## Done when
+
+- [ ] `https://<DOMAIN>` loads with a padlock, on laptop and phone
+- [ ] `http://` and `www.` both redirect to `https://<DOMAIN>/`
+- [ ] A push to `master` deploys in about a minute, with both checks green
+- [ ] A fake account ID in a pull request fails the build
+- [ ] Your mail provider shows MX, SPF, DKIM and DMARC green; a test mail arrives
+- [ ] Your values box, tick boxes and copy buttons work on your first runbook
+
+## Clean-up and cost
+
+GitHub Pages is free for public repositories; the only cost is the domain. To take the site down: **Settings → Pages → Unpublish site**, then delete the four `A` records and the `www` CNAME at the registrar. Leave every email record alone.
+
+## What I'd do differently
+
+- Run `git init` only after `ls package.json` succeeds in the same folder.
+- Check `dig +short <DOMAIN> A` myself instead of trusting a green DNS check.
+- Fix DKIM and add DMARC the first day the domain carries email, not years later.
+
+Next: write your first runbook from `templates/runbook.mdx` — and publish it only after you've run it end to end.

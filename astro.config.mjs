@@ -18,6 +18,7 @@ export default defineConfig({
       components: { PageTitle: './src/components/PageTitle.astro' },
       sidebar: [
         { label: 'Start here', items: ['start-here', 'how-to-use'] },
+        { label: 'Build your own site', items: [{ autogenerate: { directory: 'runbooks/site' } }] },
         { label: 'AWS runbooks', items: [{ autogenerate: { directory: 'runbooks/aws' } }] },
         { label: 'Homelab runbooks', items: [{ autogenerate: { directory: 'runbooks/homelab' } }] },
         { label: 'Journey log', collapsed: true, items: [{ autogenerate: { directory: 'journey' } }] },

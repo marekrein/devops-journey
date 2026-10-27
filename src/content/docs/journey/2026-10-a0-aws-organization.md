@@ -18,7 +18,6 @@ sidebar: { order: -202610 }
 **Broke and fixed:**
 
 - The CLI returned exit code 0 and printed nothing. The output pager was swallowing it; `--no-cli-pager` proved it, `AWS_PAGER=""` fixed it. My checks now look for expected output, not just a zero exit code.
-- My first portal sign-in failed — wrong username, and the password manager filled a password from another AWS login.
 - I found a forgotten third guard-rail policy from an earlier attempt, still attached. Exactly the drift Terraform will catch in Stage 2.
 
 **Decision:** the region guard rail applies only to the `workloads` OU; the management account runs nothing but billing, Organizations and SSO.

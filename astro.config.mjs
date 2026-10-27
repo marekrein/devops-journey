@@ -23,6 +23,14 @@ export default defineConfig({
       ],
       editLink: { baseUrl: 'https://github.com/marekrein/devops-journey/edit/master/' },
       lastUpdated: true,
+      // Preview image for LinkedIn, Slack and other link previews (1200×627)
+      head: [
+        { tag: 'meta', attrs: { property: 'og:image', content: 'https://reinhold.co/og.png' } },
+        { tag: 'meta', attrs: { property: 'og:image:width', content: '1200' } },
+        { tag: 'meta', attrs: { property: 'og:image:height', content: '627' } },
+        { tag: 'meta', attrs: { property: 'og:image:alt', content: 'Marek Reinhold — blog and runbooks on AWS, Terraform, Kubernetes' } },
+        { tag: 'meta', attrs: { name: 'twitter:image', content: 'https://reinhold.co/og.png' } },
+      ],
       customCss: ['./src/styles/custom.css'],
       components: { PageTitle: './src/components/PageTitle.astro', SiteTitle: './src/components/SiteTitle.astro' },
       plugins: [

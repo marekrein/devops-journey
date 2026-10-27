@@ -3,7 +3,7 @@ title: Runbooks
 description: Who these runbooks are for, what they cost, and how far you can trust them.
 sidebar: { order: 0, label: Start here }
 ---
-These are the runbooks I use to learn platform engineering: AWS the way it's run in production, Terraform, and Kubernetes on my own hardware. Each one is published only **after I've run it end to end**, with my real results and the things that broke.
+These are the runbooks I use to go deeper on how software runs in production: AWS the way it's run in production, Terraform, and Kubernetes on my own hardware. Each one is published only **after I've run it end to end**, with my real results and the things that broke.
 
 ## Who they're for
 

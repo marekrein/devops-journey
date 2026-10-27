@@ -16,7 +16,7 @@ export default defineConfig({
   integrations: [
     starlight({
       title: 'Marek Reinhold',
-      description: 'Senior Java engineer growing into platform engineering — blog and tested runbooks for AWS, Terraform and Kubernetes.',
+      description: 'Senior Java backend engineer and tech lead writing about running software in production — blog and tested runbooks for AWS, Terraform and Kubernetes.',
       social: [
         { icon: 'github', label: 'GitHub', href: 'https://github.com/marekrein' },
         { icon: 'linkedin', label: 'LinkedIn', href: 'https://www.linkedin.com/in/marek-reinhold/' },

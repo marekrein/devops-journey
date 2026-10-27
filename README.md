@@ -1,6 +1,6 @@
 # devops-journey
 
-Source of [reinhold.co](https://reinhold.co): tested platform-engineering runbooks (AWS, Terraform, Kubernetes) and a journey log. Built with [Astro Starlight](https://starlight.astro.build), deployed to GitHub Pages on every push to `master`.
+Source of [reinhold.co](https://reinhold.co): a blog and tested runbooks for running software in production (AWS, Terraform, Kubernetes). Built with [Astro Starlight](https://starlight.astro.build), deployed to GitHub Pages on every push to `master`.
 
 ```bash
 npm ci

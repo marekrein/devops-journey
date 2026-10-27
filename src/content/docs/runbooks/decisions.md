@@ -1,7 +1,7 @@
 ---
 title: Decisions
 description: Why the labs are built the way they are.
-sidebar: { order: 0, label: Overview }
+sidebar: { order: 2 }
 ---
 Short records of choices that shape the runbooks — what I chose, what I rejected, and what it costs.
 

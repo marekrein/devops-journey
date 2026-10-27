@@ -1,10 +1,10 @@
 ---
-title: "Oct 2026 — No human uses AWS root"
+title: "No human uses AWS root"
 description: Three AWS accounts, SSO with MFA as the only way in, region guard rails, budgets — and the CLI that printed nothing.
-draft: false
-sidebar: { order: -202610 }
+date: 2026-10-22
+tags: [aws, security, lab]
+excerpt: An AWS setup where nobody signs in as root or as an IAM user — what I built, how I checked it, and what broke.
 ---
-
 **Goal:** an AWS setup where nobody signs in as root or as an IAM user — the foundation for every later AWS lab.
 
 **Built:** an organization with a management account and two member accounts (`dev`, `prod`) in a `workloads` OU; IAM Identity Center with MFA on every sign-in; two service control policies; a $50 budget with three alerts in each account; three SSO profiles on my Mac.

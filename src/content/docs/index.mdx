@@ -1,22 +1,35 @@
 ---
-title: Platform Engineering Runbooks
-description: Tested, step-by-step runbooks for AWS, Terraform and Kubernetes, written by a senior Java engineer while learning platform engineering.
+title: Marek Reinhold
+description: Senior Java backend engineer and tech lead, growing into platform engineering. Blog and tested runbooks for AWS, Terraform and Kubernetes.
 template: splash
 hero:
-  tagline: Step-by-step runbooks I ran myself — AWS, Terraform, Kubernetes on real hardware — with the real results and the real failures.
+  title: Marek Reinhold
+  tagline: Senior Java backend engineer and tech lead, growing into platform engineering. I write about what I build, what breaks, and how I fix it.
   actions:
-    - text: Start here
-      link: /start-here/
+    - text: Read the blog
+      link: /blog/
       icon: right-arrow
-    - text: How to use a runbook
-      link: /how-to-use/
+    - text: Runbooks
+      link: /runbooks/
       variant: minimal
 ---
 import { CardGrid, LinkCard } from '@astrojs/starlight/components';
 
+## Latest
+
 <CardGrid>
-  <LinkCard title="Start here" description="Who these runbooks are for, what they cost, how far to trust them." href="/start-here/" />
-  <LinkCard title="AWS track" description="Start with A0: an AWS organization nobody logs into as root." href="/runbooks/aws/a0-aws-organization/" />
-  <LinkCard title="Homelab track" description="Kubernetes on an old laptop and two Raspberry Pi 5s." href="/runbooks/homelab/" />
-  <LinkCard title="Journey log" description="What I built, what broke, what I decided — newest first." href="/journey/" />
+  <LinkCard title="No human uses AWS root" description="Three AWS accounts, SSO with MFA as the only way in, region guard rails and budgets — and the CLI that printed nothing." href="/blog/2026-10-22-no-human-uses-aws-root/" />
 </CardGrid>
+
+## Runbooks
+
+Step-by-step guides I've run end to end, with the real results and failures. Fill in your own values and follow along.
+
+<CardGrid>
+  <LinkCard title="Start here" description="Who the runbooks are for, what they cost, how far to trust them." href="/runbooks/" />
+  <LinkCard title="A0 — AWS organization, SSO, budgets" description="Three accounts nobody logs into as root." href="/runbooks/aws/a0-aws-organization/" />
+</CardGrid>
+
+## About me
+
+8+ years of Java backend in fintech and public-sector integrations; ten years at sea before that. [More about me](/about/) · [marek@reinhold.co](mailto:marek@reinhold.co)

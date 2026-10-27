@@ -1,7 +1,7 @@
 ---
-title: Start here
+title: Runbooks
 description: Who these runbooks are for, what they cost, and how far you can trust them.
-sidebar: { order: 0 }
+sidebar: { order: 0, label: Start here }
 ---
 These are the runbooks I use to learn platform engineering: AWS the way it's run in production, Terraform, and Kubernetes on my own hardware. Each one is published only **after I've run it end to end**, with my real results and the things that broke.
 
@@ -34,5 +34,5 @@ Both tracks run the same small Java (Spring Boot) service, so you can compare wh
 
 ## Where to begin
 
-1. Read [How to use a runbook](/how-to-use/) — two minutes.
-2. Start with **A0 — An AWS organization nobody logs into as root**. Everything else on the AWS track builds on it.
+1. Read [How to use a runbook](/runbooks/how-to-use/) — two minutes.
+2. Start with [A0 — An AWS organization nobody logs into as root](/runbooks/aws/a0-aws-organization/). Everything else on the AWS track builds on it.

@@ -1,0 +1,24 @@
+---
+// Site title plus the three top-level sections. On phones the links are hidden;
+// the home page and the sidebar menu lead to the same places.
+import Default from '@astrojs/starlight/components/SiteTitle.astro';
+const path = Astro.url.pathname;
+const links = [
+  { label: 'Blog', href: '/blog/' },
+  { label: 'Runbooks', href: '/runbooks/' },
+  { label: 'About', href: '/about/' },
+];
+---
+<Default><slot /></Default>
+<nav class="dj-nav" aria-label="Sections">
+  {links.map((l) => (
+    <a href={l.href} aria-current={path.startsWith(l.href) ? 'page' : undefined}>{l.label}</a>
+  ))}
+</nav>
+
+<style>
+  .dj-nav { display: none; gap: 1.25rem; margin-inline-start: 1rem; padding-inline-start: 1rem; border-inline-start: 1px solid var(--sl-color-gray-5); }
+  @media (min-width: 50rem) { .dj-nav { display: flex; align-items: center; } }
+  .dj-nav a { color: var(--sl-color-gray-2); font-weight: 600; text-decoration: none; white-space: nowrap; }
+  .dj-nav a:hover, .dj-nav a[aria-current='page'] { color: var(--sl-color-text-accent); }
+</style>

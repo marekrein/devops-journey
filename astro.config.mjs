@@ -1,27 +1,45 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import starlightBlog from 'starlight-blog';
 
 export default defineConfig({
   site: 'https://reinhold.co',
+  // Old addresses from before the blog layout (2026-10-27) keep working.
+  redirects: {
+    '/start-here/': '/runbooks/',
+    '/how-to-use/': '/runbooks/how-to-use/',
+    '/decisions/': '/runbooks/decisions/',
+    '/journey/': '/blog/',
+    '/journey/2026-10-a0-aws-organization/': '/blog/2026-10-22-no-human-uses-aws-root/',
+  },
   integrations: [
     starlight({
-      title: 'Platform Runbooks',
-      description: 'Tested, step-by-step runbooks for AWS, Terraform and Kubernetes — written while learning, with real results and failures.',
+      title: 'Marek Reinhold',
+      description: 'Senior Java engineer growing into platform engineering — blog and tested runbooks for AWS, Terraform and Kubernetes.',
       social: [
-        { icon: 'github', label: 'GitHub', href: 'https://github.com/marekrein/devops-journey' },
+        { icon: 'github', label: 'GitHub', href: 'https://github.com/marekrein' },
         { icon: 'linkedin', label: 'LinkedIn', href: 'https://www.linkedin.com/in/marek-reinhold/' },
       ],
       editLink: { baseUrl: 'https://github.com/marekrein/devops-journey/edit/master/' },
       lastUpdated: true,
       customCss: ['./src/styles/custom.css'],
-      components: { PageTitle: './src/components/PageTitle.astro' },
+      components: { PageTitle: './src/components/PageTitle.astro', SiteTitle: './src/components/SiteTitle.astro' },
+      plugins: [
+        starlightBlog({
+          title: 'Blog',
+          prefix: 'blog',
+          navigation: 'none',
+          recentPostCount: 10,
+          authors: {
+            marek: { name: 'Marek Reinhold', url: 'https://reinhold.co/about/' },
+          },
+        }),
+      ],
       sidebar: [
-        { label: 'Start here', items: ['start-here', 'how-to-use'] },
-        { label: 'AWS runbooks', items: [{ autogenerate: { directory: 'runbooks/aws' } }] },
-        { label: 'Homelab runbooks', items: [{ autogenerate: { directory: 'runbooks/homelab' } }] },
-        { label: 'Journey log', collapsed: true, items: [{ autogenerate: { directory: 'journey' } }] },
-        { label: 'Decisions', collapsed: true, items: [{ autogenerate: { directory: 'decisions' } }] },
+        { label: 'Runbooks', items: ['runbooks', 'runbooks/how-to-use', 'runbooks/decisions'] },
+        { label: 'AWS', items: [{ autogenerate: { directory: 'runbooks/aws' } }] },
+        { label: 'Homelab', items: [{ autogenerate: { directory: 'runbooks/homelab' } }] },
         { label: 'About', link: '/about/' },
       ],
     }),
